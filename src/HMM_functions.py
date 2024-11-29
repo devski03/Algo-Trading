@@ -7,6 +7,7 @@ def forward_algorithm(obs, A, B_DNN, pi):
     :param A: numpy.ndarray, state transition probability matrix of size (N, N)
     :param B_DNN: (function) computes the emission probability for a given state and observation vector
                     B(i, obs_t) should return the probability of obs_t given state i
+                    # usually computed using parametric forms; will be substituted for a deep neural network
     :param pi: numpy.ndarray, initial probabilities (N)
     :return: alpha: numpy.ndarray, forward probabilities matrix of size (T, N)
     """
@@ -48,7 +49,7 @@ def backward_algorithm(obs, A, B_DNN):
     # Recursion step (backwards in time)
     for t in range(T - 2, -1, -1):  # t goes from T-2 to 0
         for i in range(N):
-            beta[t, i] = sum(A[i, j] * B(j, obs[t + 1]) * beta[t + 1, j] for j in range(N))
+            beta[t, i] = sum(A[i, j] * B_DNN(j, obs[t + 1]) * beta[t + 1, j] for j in range(N))
 
     return beta
 
@@ -62,14 +63,14 @@ def posterior_probabilities(alpha, beta):
     :param beta: (numpy.ndarray): Backward probabilities of shape (T, N),
                               where beta[t, i] is the probability of the observations from time t+1 to T
                               given state i at time t
-    :return: posterior (numpy.ndarray): Posterior probabilities of shape (T, N),
+    :return: gamma (numpy.ndarray): Posterior probabilities of shape (T, N),
                                    where posterior[t, i] is the probability of being in state i at time t
                                    given the full observation sequence
     """
     # Normalize to ensure probabilities sum to 1 for each time step
-    posterior = (alpha * beta) / (alpha * beta).sum(axis=1, keepdims=True)
+    gamma = (alpha * beta) / (alpha * beta).sum(axis=1, keepdims=True)
 
-    return posterior
+    return gamma
 
 
 def expected_transitions(alpha, beta, A, B_DNN, obs):
@@ -92,3 +93,61 @@ def expected_transitions(alpha, beta, A, B_DNN, obs):
                             where xi[t, i, j] represents the expected number of transitions
                             from state i to state j at time t
     """
+    T, d = obs.shape  # T: number of time steps, d: dimension of observations
+    N = alpha.shape[1]  # Number of states
+
+    xi = np.zeros((T - 1, N, N))
+
+    for t in range(T - 1):
+        # Compute the denominator for normalization
+        denominator = 0
+        for i in range(N):
+            for j in range(N):
+                denominator += alpha[t, i] * A[i, j] * B_DNN(j, obs[t + 1]) * beta[t + 1, j]
+
+        # Compute xi[t, i, j]
+        for i in range(N):
+            for j in range(N):
+                numerator = alpha[t, i] * A[i, j] * B_DNN(j, obs[t + 1]) * beta[t + 1, j]
+                xi[t, i, j] = numerator / denominator
+
+    return xi
+
+
+def update_pi(gamma):
+    """
+    Update the initial state probabilities using the posterior probabilities
+    :param gamma: (numpy.ndarray): Posterior probabilities of shape (T, N),
+                                   where posterior[t, i] is the probability of being in state i
+                                   at time t given the full observation sequence
+    :return: pi (numpy.ndarray): Updated initial state probabilities of shape (N,),
+                            where pi[i] is the probability of starting in state i
+    """
+    pi = gamma[0]
+    return pi
+
+
+def update_transitions(xi, gamma):
+    """
+    Updates the transition probability matrix
+    :param xi: (numpy.ndarray): Expected transitions of shape (T-1, N, N),
+                            where xi[t, i, j] represents the expected number of transitions
+                            from state i to state j at time t
+    :param gamma: (numpy.ndarray): Posterior probabilities of shape (T, N),
+                               where gamma[t, i] represents the probability of being in state i at time t
+    :return: A (numpy.ndarray): Updated transition probability matrix of shape (N, N),
+                           where A[i, j] represents the probability of transitioning from state i to state j
+    """
+    T_minus_1, N, _ = xi.shape  # T-1 is the number of time steps minus 1
+
+    # Initialize the updated transition matrix
+    A = np.zeros((N, N))
+
+    # Update A[i, j]
+    for i in range(N):
+        for j in range(N):
+            numerator = np.sum(xi[:, i, j])  # Sum over all time steps of expected transitions from i to j
+            denominator = np.sum(gamma[:-1, i])  # Sum over all time steps of being in state i
+            A[i, j] = numerator / denominator if denominator != 0 else 0
+
+    return A
