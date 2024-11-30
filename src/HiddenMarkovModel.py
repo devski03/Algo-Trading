@@ -1,9 +1,10 @@
 class HMM:
     def __init__(self, obs_HMM, num_regimes, A, B, pi):
         """
-        :param A_0: transition probability matrix
-        :param B_0: emission probability matrix
-        :param pi_0: initial state distribution
+        :param obs_HMM: array of all observation vectors model can be trained on
+        :param A: active transition probability matrix
+        :param B: active emission probability matrix
+        :param pi: active initial state distribution
         """
         self.obs_HMM = obs_HMM
         self.num_regimes = num_regimes
