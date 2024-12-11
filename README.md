@@ -1,11 +1,11 @@
-### CHMM-DNN Hybrid Model for Hidden Regime Detection
+# CHMM-DNN Hybrid Model for Hidden Regime Detection
 
-# Overview
+### Overview
 From a dataset of observations, predict the distributional likelihood of hidden states (bear/bull/sideways).
 After training, model outputs the probabilistic distribution of hidden states, and estimates trasition probabilities to other states.
 Used to inform bearish and bullish trading strategies; provide thresholds for entry positions.
 
-# Training Setup
+### Training Setup
 Modified from standard EM algorithm for CHMM.
 After the forward-backward algorithm runs in the expectation step, posterior probabilities are generated.
 These are fed to a Deep Neural Network (DNN) as soft labels, and updated emission probabilities are output as softmax probabilities.
